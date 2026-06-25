@@ -36,7 +36,7 @@ public class Board {
         return score;
     }
 
-    // Verifica se o jogador já venceu (usado para não perguntar várias vezes)
+    // Verifica se o jogador já venceu
     public boolean hasWon() {
         return won;
     }
@@ -46,7 +46,7 @@ public class Board {
         this.won = won;
     }
 
-    // Gera uma nova peça (2 com 90% de chance, 4 com 10%) em uma casa vazia
+    // Gera uma nova peça (2 ou 4) em uma posição vazia aleatória
     public void spawnRandomTile() {
         int emptyCount = 0;
         for (int i = 0; i < SIZE; i++)
@@ -71,9 +71,70 @@ public class Board {
                 }
     }
 
-    // ----- Métodos privados para mover e mesclar as linhas/colunas -----
+    // ---------- Métodos públicos de movimento ----------
 
-    // Obtém uma linha do grid
+    public boolean moveLeft() {
+        boolean changed = false;
+        for (int r = 0; r < SIZE; r++) {
+            int[] line = getRow(r);
+            int[] original = line.clone();
+            processLine(line);
+            if (!java.util.Arrays.equals(original, line)) {
+                changed = true;
+                setRow(r, line);
+            }
+        }
+        return changed;
+    }
+
+    public boolean moveRight() {
+        boolean changed = false;
+        for (int r = 0; r < SIZE; r++) {
+            int[] line = getRow(r);
+            int[] original = line.clone();
+            reverse(line);
+            processLine(line);
+            reverse(line);
+            if (!java.util.Arrays.equals(original, line)) {
+                changed = true;
+                setRow(r, line);
+            }
+        }
+        return changed;
+    }
+
+    public boolean moveUp() {
+        boolean changed = false;
+        for (int c = 0; c < SIZE; c++) {
+            int[] col = getCol(c);
+            int[] original = col.clone();
+            processLine(col);
+            if (!java.util.Arrays.equals(original, col)) {
+                changed = true;
+                setCol(c, col);
+            }
+        }
+        return changed;
+    }
+
+    public boolean moveDown() {
+        boolean changed = false;
+        for (int c = 0; c < SIZE; c++) {
+            int[] col = getCol(c);
+            int[] original = col.clone();
+            reverse(col);
+            processLine(col);
+            reverse(col);
+            if (!java.util.Arrays.equals(original, col)) {
+                changed = true;
+                setCol(c, col);
+            }
+        }
+        return changed;
+    }
+
+    // ---------- Métodos auxiliares privados ----------
+
     private int[] getRow(int r) {
         int[] row = new int[SIZE];
         for (int c = 0; c < SIZE; c++)
@@ -81,13 +142,11 @@ public class Board {
         return row;
     }
 
-    // Define uma linha no grid
     private void setRow(int r, int[] row) {
         for (int c = 0; c < SIZE; c++)
             grid[r][c] = row[c];
     }
 
-    // Obtém uma coluna
     private int[] getCol(int c) {
         int[] col = new int[SIZE];
         for (int r = 0; r < SIZE; r++)
@@ -95,14 +154,12 @@ public class Board {
         return col;
     }
 
-    // Define uma coluna
     private void setCol(int c, int[] col) {
         for (int r = 0; r < SIZE; r++)
             grid[r][c] = col[r];
     }
 
-    // Processa uma linha (ou coluna) em uma direção: compacta, mescla e compacta de
-    // novo
+    // Processa uma linha/coluna: compacta, mescla peças iguais e compacta novamente
     private void processLine(int[] line) {
         compact(line);
         for (int i = 0; i < SIZE - 1; i++) {
@@ -110,14 +167,14 @@ public class Board {
                 int merged = line[i] * 2;
                 line[i] = merged;
                 line[i + 1] = 0;
-                score += merged; // acumula a pontuação
-                i++; // pula a próxima peça, já mesclada
+                score += merged;
+                i++; // pula a próxima posição já usada na mescla
             }
         }
         compact(line);
     }
 
-    // Remove os zeros e empurra os números para o início da linha
+    // Remove zeros e empurra todos os números para a esquerda
     private void compact(int[] line) {
         int pos = 0;
         for (int i = 0; i < SIZE; i++)
@@ -127,8 +184,7 @@ public class Board {
             line[pos++] = 0;
     }
 
-    // Inverte a ordem dos elementos de um array (útil para movimentos
-    // direita/baixo)
+    // Inverte um array (útil para movimentos direita/baixo)
     private void reverse(int[] arr) {
         for (int i = 0; i < arr.length / 2; i++) {
             int temp = arr[i];
