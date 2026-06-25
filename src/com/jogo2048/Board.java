@@ -36,7 +36,7 @@ public class Board {
         return score;
     }
 
-    // Verifica se o jogador já venceu
+    // Verifica se o jogador já venceu (usado para não perguntar várias vezes)
     public boolean hasWon() {
         return won;
     }
@@ -46,7 +46,7 @@ public class Board {
         this.won = won;
     }
 
-    // Gera uma nova peça (2 ou 4) em uma posição vazia aleatória
+    // Gera uma nova peça (2 com 90% de chance, 4 com 10%) em uma casa vazia
     public void spawnRandomTile() {
         int emptyCount = 0;
         for (int i = 0; i < SIZE; i++)
@@ -131,6 +131,41 @@ public class Board {
             }
         }
         return changed;
+    }
+
+    // ---------- Verificações de estado do jogo ----------
+
+    // Retorna true se não houver mais jogadas possíveis
+    public boolean isGameOver() {
+        if (!isBoardFull())
+            return false;
+        for (int i = 0; i < SIZE; i++)
+            for (int j = 0; j < SIZE; j++) {
+                int val = grid[i][j];
+                if (j < SIZE - 1 && grid[i][j + 1] == val)
+                    return false;
+                if (i < SIZE - 1 && grid[i + 1][j] == val)
+                    return false;
+            }
+        return true;
+    }
+
+    // Verifica se o tabuleiro está completamente preenchido
+    private boolean isBoardFull() {
+        for (int i = 0; i < SIZE; i++)
+            for (int j = 0; j < SIZE; j++)
+                if (grid[i][j] == 0)
+                    return false;
+        return true;
+    }
+
+    // Retorna o valor da primeira peça >= 2048 encontrada, ou 0 se não houver
+    public int checkWinTile() {
+        for (int i = 0; i < SIZE; i++)
+            for (int j = 0; j < SIZE; j++)
+                if (grid[i][j] >= 2048)
+                    return grid[i][j];
+        return 0;
     }
 
     // ---------- Métodos auxiliares privados ----------
