@@ -39,6 +39,42 @@ public class GamePanel extends JPanel {
         tileColors.put(8192,new Color(0xFF2020));
     }
 
+    @Override
+    protected void paintComponent(Graphics g) {
+        super.paintComponent(g);
+        Graphics2D g2 = (Graphics2D) g;
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        // fundo do tabuleiro
+        g2.setColor(new Color(0xBBADA0));
+        g2.fillRoundRect(PADDING, PADDING,
+                COLS * CELL_SIZE + (COLS - 1) * PADDING,
+                ROWS * CELL_SIZE + (ROWS - 1) * PADDING, 10, 10);
+
+        // desenha cada peça
+        for (int r = 0; r < ROWS; r++) {
+            for (int c = 0; c < COLS; c++) {
+                int value = board.getCell(r, c);
+                int x = PADDING + c * (CELL_SIZE + PADDING);
+                int y = PADDING + r * (CELL_SIZE + PADDING);
+                Color bg = tileColors.getOrDefault(value, value > 0 ? new Color(0xCDA97A) : emptyColor);
+                g2.setColor(bg);
+                g2.fillRoundRect(x, y, CELL_SIZE, CELL_SIZE, 10, 10);
+
+                if (value != 0) {
+                    g2.setFont(new Font("Arial", Font.BOLD,
+                            value < 100 ? 36 : value < 1000 ? 32 : 28));
+                    String text = String.valueOf(value);
+                    FontMetrics fm = g2.getFontMetrics();
+                    int tx = x + (CELL_SIZE - fm.stringWidth(text)) / 2;
+                    int ty = y + (CELL_SIZE - fm.getAscent()) / 2 + fm.getAscent() - 2;
+                    g2.setColor(value <= 4 ? new Color(0x776E65) : Color.WHITE);
+                    g2.drawString(text, tx, ty);
+                }
+            }
+        }
+    }
+
     public void setScoreListener(Consumer<Integer> listener) {
         this.scoreListener = listener;
     }
