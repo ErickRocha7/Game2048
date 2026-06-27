@@ -2,6 +2,8 @@ package com.jogo2048;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -24,19 +26,56 @@ public class GamePanel extends JPanel {
         setFocusable(true);
         board = new Board();
 
-        tileColors.put(2,   new Color(0xEEE4DA));
-        tileColors.put(4,   new Color(0xEDE0C8));
-        tileColors.put(8,   new Color(0xF2B179));
-        tileColors.put(16,  new Color(0xF59563));
-        tileColors.put(32,  new Color(0xF67C5F));
-        tileColors.put(64,  new Color(0xF65E3B));
+        tileColors.put(2, new Color(0xEEE4DA));
+        tileColors.put(4, new Color(0xEDE0C8));
+        tileColors.put(8, new Color(0xF2B179));
+        tileColors.put(16, new Color(0xF59563));
+        tileColors.put(32, new Color(0xF67C5F));
+        tileColors.put(64, new Color(0xF65E3B));
         tileColors.put(128, new Color(0xEDCF72));
         tileColors.put(256, new Color(0xEDCC61));
         tileColors.put(512, new Color(0xEDC850));
-        tileColors.put(1024,new Color(0xEDC53F));
-        tileColors.put(2048,new Color(0xEDC22E));
-        tileColors.put(4096,new Color(0xFE3A3A));
-        tileColors.put(8192,new Color(0xFF2020));
+        tileColors.put(1024, new Color(0xEDC53F));
+        tileColors.put(2048, new Color(0xEDC22E));
+        tileColors.put(4096, new Color(0xFE3A3A));
+        tileColors.put(8192, new Color(0xFF2020));
+
+        // Listener de teclado para movimentos
+        addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                boolean moved = false;
+                switch (e.getKeyCode()) {
+                    case KeyEvent.VK_LEFT:
+                        moved = board.moveLeft();
+                        break;
+                    case KeyEvent.VK_RIGHT:
+                        moved = board.moveRight();
+                        break;
+                    case KeyEvent.VK_UP:
+                        moved = board.moveUp();
+                        break;
+                    case KeyEvent.VK_DOWN:
+                        moved = board.moveDown();
+                        break;
+                    default:
+                        return;
+                }
+                if (moved) {
+                    board.spawnRandomTile();
+                    int winTile = board.checkWinTile();
+                    if (winTile > 0 && !board.hasWon()) {
+                        board.setWon(true);
+                        showWinDialog(winTile);
+                    }
+                    if (scoreListener != null)
+                        scoreListener.accept(board.getScore());
+                    repaint();
+                    if (board.isGameOver())
+                        showGameOverDialog();
+                }
+            }
+        });
     }
 
     @Override
@@ -79,5 +118,29 @@ public class GamePanel extends JPanel {
         this.scoreListener = listener;
     }
 
-    public Board getBoard() { return board; }
+    public Board getBoard() {
+        return board;
+    }
+
+    // Diálogo de vitória – pergunta se quer continuar
+    private void showWinDialog(int value) {
+        int opt = JOptionPane.showConfirmDialog(this,
+                "Você atingiu " + value + "! Deseja continuar jogando?",
+                "Vitória!", JOptionPane.YES_NO_OPTION);
+        if (opt == JOptionPane.NO_OPTION)
+            System.exit(0);
+    }
+
+    // Diálogo de game over – pergunta se quer jogar novamente
+    private void showGameOverDialog() {
+        int opt = JOptionPane.showConfirmDialog(this,
+                "Fim de jogo! Pontuação: " + board.getScore() + "\nJogar novamente?",
+                "Game Over", JOptionPane.YES_NO_OPTION);
+        if (opt == JOptionPane.YES_OPTION) {
+            board.reset();
+            repaint();
+            if (scoreListener != null)
+                scoreListener.accept(board.getScore());
+        }
+    }
 }
