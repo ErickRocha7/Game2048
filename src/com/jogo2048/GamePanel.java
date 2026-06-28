@@ -26,6 +26,7 @@ public class GamePanel extends JPanel {
         setFocusable(true);
         board = new Board();
 
+        // Cores oficiais do 2048 para cada potência
         tileColors.put(2, new Color(0xEEE4DA));
         tileColors.put(4, new Color(0xEDE0C8));
         tileColors.put(8, new Color(0xF2B179));
@@ -39,6 +40,11 @@ public class GamePanel extends JPanel {
         tileColors.put(2048, new Color(0xEDC22E));
         tileColors.put(4096, new Color(0xFE3A3A));
         tileColors.put(8192, new Color(0xFF2020));
+        // Expansão para valores além de 8192
+        tileColors.put(16384, new Color(0xFF6B6B)); // rosa avermelhado
+        tileColors.put(32768, new Color(0xFF8C42)); // laranja
+        tileColors.put(65536, new Color(0xFFD700)); // dourado
+        tileColors.put(131072, new Color(0xADFF2F)); // verde-limão
 
         // Listener de teclado para movimentos
         addKeyListener(new KeyAdapter() {
@@ -96,7 +102,9 @@ public class GamePanel extends JPanel {
                 int value = board.getCell(r, c);
                 int x = PADDING + c * (CELL_SIZE + PADDING);
                 int y = PADDING + r * (CELL_SIZE + PADDING);
-                Color bg = tileColors.getOrDefault(value, value > 0 ? new Color(0xCDA97A) : emptyColor);
+
+                // Uso do método centralizado para cor de fundo
+                Color bg = getTileColor(value);
                 g2.setColor(bg);
                 g2.fillRoundRect(x, y, CELL_SIZE, CELL_SIZE, 10, 10);
 
@@ -107,11 +115,45 @@ public class GamePanel extends JPanel {
                     FontMetrics fm = g2.getFontMetrics();
                     int tx = x + (CELL_SIZE - fm.stringWidth(text)) / 2;
                     int ty = y + (CELL_SIZE - fm.getAscent()) / 2 + fm.getAscent() - 2;
-                    g2.setColor(value <= 4 ? new Color(0x776E65) : Color.WHITE);
+                    // Escolhe cor do texto com base no fundo
+                    g2.setColor(chooseTextColor(bg));
                     g2.drawString(text, tx, ty);
                 }
             }
         }
+    }
+
+    /**
+     * Retorna a cor de fundo para um determinado valor de peça.
+     * Para valores conhecidos (potências de 2 até 131072) usa o mapa pré-definido.
+     * Para valores maiores, gera uma cor dinâmica baseada no próprio valor,
+     * mantendo legibilidade e aparência distinta.
+     */
+    private Color getTileColor(int value) {
+        if (value == 0) {
+            return emptyColor;
+        }
+        Color color = tileColors.get(value);
+        if (color != null) {
+            return color;
+        }
+        // Fallback para valores extremamente altos: gera uma cor única usando o valor
+        // como semente
+        // Usamos uma mistura de componentes RGB para manter a identidade visual
+        int r = Math.min(255, 180 + (value * 37) % 76);
+        int g = Math.min(255, 160 + (value * 73) % 96);
+        int b = Math.min(255, 100 + (value * 127) % 156);
+        return new Color(r, g, b);
+    }
+
+    /**
+     * Escolhe a cor do texto (preto ou branco) com base na luminosidade do fundo,
+     * garantindo contraste adequado.
+     */
+    private Color chooseTextColor(Color bg) {
+        // Fórmula de luminosidade relativa (percepção humana)
+        double luminance = (0.299 * bg.getRed() + 0.587 * bg.getGreen() + 0.114 * bg.getBlue()) / 255;
+        return luminance > 0.5 ? new Color(0x776E65) : Color.WHITE;
     }
 
     public void setScoreListener(Consumer<Integer> listener) {
@@ -129,7 +171,6 @@ public class GamePanel extends JPanel {
                 "Vitória!", JOptionPane.YES_NO_OPTION);
         if (opt == JOptionPane.NO_OPTION)
             System.exit(0);
-        // Garante que o painel mantenha o foco após fechar o diálogo
         requestFocusInWindow();
     }
 
@@ -144,7 +185,6 @@ public class GamePanel extends JPanel {
             if (scoreListener != null)
                 scoreListener.accept(board.getScore());
         }
-        // Garante que o painel mantenha o foco após fechar o diálogo
         requestFocusInWindow();
     }
 }
