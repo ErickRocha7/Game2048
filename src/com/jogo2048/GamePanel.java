@@ -129,6 +129,8 @@ public class GamePanel extends JPanel {
                 "Vitória!", JOptionPane.YES_NO_OPTION);
         if (opt == JOptionPane.NO_OPTION)
             System.exit(0);
+        // Garante que o painel mantenha o foco após fechar o diálogo
+        requestFocusInWindow();
     }
 
     // Diálogo de game over – pergunta se quer jogar novamente
@@ -142,5 +144,7 @@ public class GamePanel extends JPanel {
             if (scoreListener != null)
                 scoreListener.accept(board.getScore());
         }
+        // Garante que o painel mantenha o foco após fechar o diálogo
+        requestFocusInWindow();
     }
 }
