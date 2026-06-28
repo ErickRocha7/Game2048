@@ -2,6 +2,8 @@ package com.jogo2048;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 
 public class Game2048 {
     public static void main(String[] args) {
@@ -27,10 +29,16 @@ public class Game2048 {
             frame.add(panel, BorderLayout.CENTER);
             frame.pack();
             frame.setLocationRelativeTo(null);
-            frame.setVisible(true);
 
             // Garante que o painel capture as teclas assim que a janela abrir
-            panel.requestFocusInWindow();
+            frame.addWindowListener(new WindowAdapter() {
+                @Override
+                public void windowOpened(WindowEvent e) {
+                    panel.requestFocusInWindow();
+                }
+            });
+
+            frame.setVisible(true);
         });
     }
 }
