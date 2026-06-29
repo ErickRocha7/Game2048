@@ -40,35 +40,59 @@ public class GamePanel extends JPanel {
         tileColors.put(2048, new Color(0xEDC22E));
         tileColors.put(4096, new Color(0xFE3A3A));
         tileColors.put(8192, new Color(0xFF2020));
-        // Expansão para valores além de 8192
-        tileColors.put(16384, new Color(0xFF6B6B)); // rosa avermelhado
-        tileColors.put(32768, new Color(0xFF8C42)); // laranja
-        tileColors.put(65536, new Color(0xFFD700)); // dourado
-        tileColors.put(131072, new Color(0xADFF2F)); // verde-limão
+        tileColors.put(16384, new Color(0xFF6B6B));
+        tileColors.put(32768, new Color(0xFF8C42));
+        tileColors.put(65536, new Color(0xFFD700));
+        tileColors.put(131072, new Color(0xADFF2F));
 
-        // Listener de teclado para movimentos
+        // Listener de teclado para movimentos e undo/redo
         addKeyListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
                 boolean moved = false;
+                // Atalhos de undo/redo com Ctrl
+                if (e.isControlDown()) {
+                    if (e.getKeyCode() == KeyEvent.VK_Z) {
+                        if (board.canUndo()) {
+                            board.undo();
+                            moved = true; // para repaint e atualização de score
+                        }
+                    } else if (e.getKeyCode() == KeyEvent.VK_Y) {
+                        if (board.canRedo()) {
+                            board.redo();
+                            moved = true;
+                        }
+                    }
+                    if (moved) {
+                        // Não gera nova peça, apenas repinta
+                        if (scoreListener != null)
+                            scoreListener.accept(board.getScore());
+                        repaint();
+                    }
+                    return;
+                }
+
+                // Movimentos normais
+                Board.Direction dir = null;
                 switch (e.getKeyCode()) {
                     case KeyEvent.VK_LEFT:
-                        moved = board.moveLeft();
+                        dir = Board.Direction.LEFT;
                         break;
                     case KeyEvent.VK_RIGHT:
-                        moved = board.moveRight();
+                        dir = Board.Direction.RIGHT;
                         break;
                     case KeyEvent.VK_UP:
-                        moved = board.moveUp();
+                        dir = Board.Direction.UP;
                         break;
                     case KeyEvent.VK_DOWN:
-                        moved = board.moveDown();
+                        dir = Board.Direction.DOWN;
                         break;
                     default:
                         return;
                 }
+                // Usa o novo método move que já gerencia histórico
+                moved = board.move(dir);
                 if (moved) {
-                    board.spawnRandomTile();
                     int winTile = board.checkWinTile();
                     if (winTile > 0 && !board.hasWon()) {
                         board.setWon(true);
@@ -102,8 +126,6 @@ public class GamePanel extends JPanel {
                 int value = board.getCell(r, c);
                 int x = PADDING + c * (CELL_SIZE + PADDING);
                 int y = PADDING + r * (CELL_SIZE + PADDING);
-
-                // Uso do método centralizado para cor de fundo
                 Color bg = getTileColor(value);
                 g2.setColor(bg);
                 g2.fillRoundRect(x, y, CELL_SIZE, CELL_SIZE, 10, 10);
@@ -115,7 +137,6 @@ public class GamePanel extends JPanel {
                     FontMetrics fm = g2.getFontMetrics();
                     int tx = x + (CELL_SIZE - fm.stringWidth(text)) / 2;
                     int ty = y + (CELL_SIZE - fm.getAscent()) / 2 + fm.getAscent() - 2;
-                    // Escolhe cor do texto com base no fundo
                     g2.setColor(chooseTextColor(bg));
                     g2.drawString(text, tx, ty);
                 }
@@ -123,12 +144,6 @@ public class GamePanel extends JPanel {
         }
     }
 
-    /**
-     * Retorna a cor de fundo para um determinado valor de peça.
-     * Para valores conhecidos (potências de 2 até 131072) usa o mapa pré-definido.
-     * Para valores maiores, gera uma cor dinâmica baseada no próprio valor,
-     * mantendo legibilidade e aparência distinta.
-     */
     private Color getTileColor(int value) {
         if (value == 0) {
             return emptyColor;
@@ -137,21 +152,13 @@ public class GamePanel extends JPanel {
         if (color != null) {
             return color;
         }
-        // Fallback para valores extremamente altos: gera uma cor única usando o valor
-        // como semente
-        // Usamos uma mistura de componentes RGB para manter a identidade visual
         int r = Math.min(255, 180 + (value * 37) % 76);
         int g = Math.min(255, 160 + (value * 73) % 96);
         int b = Math.min(255, 100 + (value * 127) % 156);
         return new Color(r, g, b);
     }
 
-    /**
-     * Escolhe a cor do texto (preto ou branco) com base na luminosidade do fundo,
-     * garantindo contraste adequado.
-     */
     private Color chooseTextColor(Color bg) {
-        // Fórmula de luminosidade relativa (percepção humana)
         double luminance = (0.299 * bg.getRed() + 0.587 * bg.getGreen() + 0.114 * bg.getBlue()) / 255;
         return luminance > 0.5 ? new Color(0x776E65) : Color.WHITE;
     }
@@ -164,7 +171,6 @@ public class GamePanel extends JPanel {
         return board;
     }
 
-    // Diálogo de vitória – pergunta se quer continuar
     private void showWinDialog(int value) {
         int opt = JOptionPane.showConfirmDialog(this,
                 "Você atingiu " + value + "! Deseja continuar jogando?",
@@ -174,7 +180,6 @@ public class GamePanel extends JPanel {
         requestFocusInWindow();
     }
 
-    // Diálogo de game over – pergunta se quer jogar novamente
     private void showGameOverDialog() {
         int opt = JOptionPane.showConfirmDialog(this,
                 "Fim de jogo! Pontuação: " + board.getScore() + "\nJogar novamente?",
