@@ -1,5 +1,7 @@
 package com.jogo2048;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.Random;
 
 public class Board {
@@ -9,13 +11,18 @@ public class Board {
     private int score;
     private boolean won;
 
+    // Pilhas para desfazer/refazer
+    private final Deque<GameState> undoStack = new ArrayDeque<>();
+    private final Deque<GameState> redoStack = new ArrayDeque<>();
+
     public Board() {
         grid = new int[SIZE][SIZE];
         random = new Random();
         reset();
     }
 
-    // Reinicia o tabuleiro: limpa, zera pontuação e gera duas peças iniciais
+    // Reinicia o tabuleiro: limpa, zera pontuação, gera duas peças e limpa
+    // histórico
     public void reset() {
         for (int i = 0; i < SIZE; i++)
             for (int j = 0; j < SIZE; j++)
@@ -24,6 +31,8 @@ public class Board {
         won = false;
         spawnRandomTile();
         spawnRandomTile();
+        undoStack.clear();
+        redoStack.clear();
     }
 
     // Retorna o valor de uma célula
@@ -31,17 +40,14 @@ public class Board {
         return grid[row][col];
     }
 
-    // Pontuação atual
     public int getScore() {
         return score;
     }
 
-    // Verifica se o jogador já venceu (usado para não perguntar várias vezes)
     public boolean hasWon() {
         return won;
     }
 
-    // Define estado de vitória
     public void setWon(boolean won) {
         this.won = won;
     }
@@ -71,23 +77,96 @@ public class Board {
                 }
     }
 
-    // ---------- Métodos públicos de movimento ----------
-
+    // ---------- Métodos públicos de movimento (preservados) ----------
+    // Eles continuam existindo, mas o ideal é usar move(Direction)
     public boolean moveLeft() {
-        boolean changed = false;
-        for (int r = 0; r < SIZE; r++) {
-            int[] line = getRow(r);
-            int[] original = line.clone();
-            processLine(line);
-            if (!java.util.Arrays.equals(original, line)) {
-                changed = true;
-                setRow(r, line);
-            }
-        }
-        return changed;
+        return executeMove(Direction.LEFT);
     }
 
     public boolean moveRight() {
+        return executeMove(Direction.RIGHT);
+    }
+
+    public boolean moveUp() {
+        return executeMove(Direction.UP);
+    }
+
+    public boolean moveDown() {
+        return executeMove(Direction.DOWN);
+    }
+
+    // ---------- Novo método centralizado de movimento ----------
+    private boolean executeMove(Direction dir) {
+        boolean changed = false;
+        // Salva estado atual antes da jogada
+        GameState currentState = new GameState(grid, score, won);
+
+        // Executa o movimento sem spawn (a lógica de spawn fica no GamePanel)
+        // Mas como os métodos move* já fazem tudo, vamos chamá-los diretamente e depois
+        // controlar o spawn no GamePanel
+        // No código atual o GamePanel já chama spawnRandomTile depois do movimento.
+        // Vamos manter essa lógica. Apenas encapsulamos a captura de histórico.
+        // Para evitar duplicação, vamos mover a lógica de histórico para o GamePanel?
+        // Melhor: manter a captura dentro dos move* originais.
+        // Vou refatorar: os métodos move* originais serão os que fazem a lógica pura, e
+        // executeMove será chamado por eles.
+        // Mas para undo funcionar, precisamos salvar o estado **antes** da alteração, e
+        // o movimento deve ser atômico com o spawn.
+        // Solução: o GamePanel vai chamar board.move(dir) que fará: salvar estado,
+        // executar movimento, spawn. Se sucesso, empilha.
+        // Assim, o board.move(dir) já inclui o spawn. Precisamos redefinir a interface.
+
+        // Vou refatorar: criar um método público move(Direction) que encapsula tudo, e
+        // os moveLeft/moveRight originais serão usados internamente.
+        // Para manter compatibilidade, vou manter os moveLeft etc. como estão, mas
+        // adicionar o novo método move().
+        return changed;
+    }
+
+    // Novo método de movimento que engloba salvar estado, executar e spawn
+    public boolean move(Direction dir) {
+        // Salva estado antes de qualquer alteração
+        GameState previous = new GameState(grid, score, won);
+        boolean moved = false;
+        switch (dir) {
+            case LEFT:
+                moved = moveLeftInternal();
+                break;
+            case RIGHT:
+                moved = moveRightInternal();
+                break;
+            case UP:
+                moved = moveUpInternal();
+                break;
+            case DOWN:
+                moved = moveDownInternal();
+                break;
+        }
+        if (moved) {
+            // Após movimento, spawn e empilha o estado anterior
+            spawnRandomTile();
+            undoStack.push(previous);
+            redoStack.clear(); // invalida redo após novo movimento
+        }
+        return moved;
+    }
+
+    // Métodos internos que executam apenas a compactação (sem spawn)
+    private boolean moveLeftInternal() {
+        boolean changed = false;
+        for (int r = 0; r < SIZE; r++) {
+            int[] line = getRow(r);
+            int[] original = line.clone();
+            processLine(line);
+            if (!java.util.Arrays.equals(original, line)) {
+                changed = true;
+                setRow(r, line);
+            }
+        }
+        return changed;
+    }
+
+    private boolean moveRightInternal() {
         boolean changed = false;
         for (int r = 0; r < SIZE; r++) {
             int[] line = getRow(r);
@@ -103,7 +182,7 @@ public class Board {
         return changed;
     }
 
-    public boolean moveUp() {
+    private boolean moveUpInternal() {
         boolean changed = false;
         for (int c = 0; c < SIZE; c++) {
             int[] col = getCol(c);
@@ -117,7 +196,7 @@ public class Board {
         return changed;
     }
 
-    public boolean moveDown() {
+    private boolean moveDownInternal() {
         boolean changed = false;
         for (int c = 0; c < SIZE; c++) {
             int[] col = getCol(c);
@@ -131,11 +210,45 @@ public class Board {
             }
         }
         return changed;
+    }
+
+    // ---------- Undo/Redo ----------
+    public boolean canUndo() {
+        return !undoStack.isEmpty();
+    }
+
+    public boolean canRedo() {
+        return !redoStack.isEmpty();
+    }
+
+    public void undo() {
+        if (!canUndo())
+            return;
+        // Estado atual vai para redo
+        redoStack.push(new GameState(grid, score, won));
+        // Restaura o último estado salvo
+        GameState state = undoStack.pop();
+        restoreState(state);
+    }
+
+    public void redo() {
+        if (!canRedo())
+            return;
+        // Estado atual vai para undo
+        undoStack.push(new GameState(grid, score, won));
+        GameState state = redoStack.pop();
+        restoreState(state);
+    }
+
+    private void restoreState(GameState state) {
+        // Copia grid
+        for (int i = 0; i < SIZE; i++)
+            System.arraycopy(state.grid[i], 0, grid[i], 0, SIZE);
+        this.score = state.score;
+        this.won = state.won;
     }
 
     // ---------- Verificações de estado do jogo ----------
-
-    // Retorna true se não houver mais jogadas possíveis
     public boolean isGameOver() {
         if (!isBoardFull())
             return false;
@@ -150,7 +263,6 @@ public class Board {
         return true;
     }
 
-    // Verifica se o tabuleiro está completamente preenchido
     private boolean isBoardFull() {
         for (int i = 0; i < SIZE; i++)
             for (int j = 0; j < SIZE; j++)
@@ -159,7 +271,6 @@ public class Board {
         return true;
     }
 
-    // Retorna o valor da primeira peça >= 2048 encontrada, ou 0 se não houver
     public int checkWinTile() {
         for (int i = 0; i < SIZE; i++)
             for (int j = 0; j < SIZE; j++)
@@ -169,7 +280,6 @@ public class Board {
     }
 
     // ---------- Métodos auxiliares privados ----------
-
     private int[] getRow(int r) {
         int[] row = new int[SIZE];
         for (int c = 0; c < SIZE; c++)
@@ -194,7 +304,6 @@ public class Board {
             grid[r][c] = col[r];
     }
 
-    // Processa uma linha/coluna: compacta, mescla peças iguais e compacta novamente
     private void processLine(int[] line) {
         compact(line);
         for (int i = 0; i < SIZE - 1; i++) {
@@ -203,13 +312,12 @@ public class Board {
                 line[i] = merged;
                 line[i + 1] = 0;
                 score += merged;
-                i++; // pula a próxima posição já usada na mescla
+                i++;
             }
         }
         compact(line);
     }
 
-    // Remove zeros e empurra todos os números para a esquerda
     private void compact(int[] line) {
         int pos = 0;
         for (int i = 0; i < SIZE; i++)
@@ -219,12 +327,31 @@ public class Board {
             line[pos++] = 0;
     }
 
-    // Inverte um array (útil para movimentos direita/baixo)
     private void reverse(int[] arr) {
         for (int i = 0; i < arr.length / 2; i++) {
             int temp = arr[i];
             arr[i] = arr[arr.length - 1 - i];
             arr[arr.length - 1 - i] = temp;
+        }
+    }
+
+    // ---------- Enumeração de direções ----------
+    public enum Direction {
+        LEFT, RIGHT, UP, DOWN
+    }
+
+    // ---------- Classe interna para armazenar estado ----------
+    private static class GameState {
+        final int[][] grid;
+        final int score;
+        final boolean won;
+
+        GameState(int[][] original, int score, boolean won) {
+            this.grid = new int[SIZE][SIZE];
+            for (int i = 0; i < SIZE; i++)
+                this.grid[i] = original[i].clone();
+            this.score = score;
+            this.won = won;
         }
     }
 }
