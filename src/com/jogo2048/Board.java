@@ -65,7 +65,7 @@ public class Board {
                 }
     }
 
-    // ---------- Métodos públicos de movimento (agora delegam ao método centralizado) ----------
+    // ---------- Métodos públicos de movimento (delegam ao centralizado) ----------
     public boolean moveLeft() {
         return move(Direction.LEFT);
     }
@@ -84,60 +84,94 @@ public class Board {
 
     /**
      * Método centralizado de movimento.
-     * @param dir direção do deslocamento
+     * Gerencia o ciclo completo: executa o deslocamento e, se houver
+     * alteração, gera automaticamente uma nova peça no tabuleiro.
+     *
+     * @param dir direção do movimento
      * @return true se o tabuleiro foi alterado
      */
     public boolean move(Direction dir) {
-        boolean changed = false;
+        boolean moved;
         switch (dir) {
             case LEFT:
-                for (int r = 0; r < SIZE; r++) {
-                    int[] line = getRow(r);
-                    int[] original = line.clone();
-                    processLine(line);
-                    if (!java.util.Arrays.equals(original, line)) {
-                        changed = true;
-                        setRow(r, line);
-                    }
-                }
+                moved = moveLeftInternal();
                 break;
             case RIGHT:
-                for (int r = 0; r < SIZE; r++) {
-                    int[] line = getRow(r);
-                    int[] original = line.clone();
-                    reverse(line);
-                    processLine(line);
-                    reverse(line);
-                    if (!java.util.Arrays.equals(original, line)) {
-                        changed = true;
-                        setRow(r, line);
-                    }
-                }
+                moved = moveRightInternal();
                 break;
             case UP:
-                for (int c = 0; c < SIZE; c++) {
-                    int[] col = getCol(c);
-                    int[] original = col.clone();
-                    processLine(col);
-                    if (!java.util.Arrays.equals(original, col)) {
-                        changed = true;
-                        setCol(c, col);
-                    }
-                }
+                moved = moveUpInternal();
                 break;
             case DOWN:
-                for (int c = 0; c < SIZE; c++) {
-                    int[] col = getCol(c);
-                    int[] original = col.clone();
-                    reverse(col);
-                    processLine(col);
-                    reverse(col);
-                    if (!java.util.Arrays.equals(original, col)) {
-                        changed = true;
-                        setCol(c, col);
-                    }
-                }
+                moved = moveDownInternal();
                 break;
+            default:
+                return false;
+        }
+
+        if (moved) {
+            spawnRandomTile();
+        }
+        return moved;
+    }
+
+    // ---------- Sub-rotinas internas de movimento (sem spawn) ----------
+    private boolean moveLeftInternal() {
+        boolean changed = false;
+        for (int r = 0; r < SIZE; r++) {
+            int[] line = getRow(r);
+            int[] original = line.clone();
+            processLine(line);
+            if (!java.util.Arrays.equals(original, line)) {
+                changed = true;
+                setRow(r, line);
+            }
+        }
+        return changed;
+    }
+
+    private boolean moveRightInternal() {
+        boolean changed = false;
+        for (int r = 0; r < SIZE; r++) {
+            int[] line = getRow(r);
+            int[] original = line.clone();
+            reverse(line);
+            processLine(line);
+            reverse(line);
+            if (!java.util.Arrays.equals(original, line)) {
+                changed = true;
+                setRow(r, line);
+            }
+        }
+        return changed;
+    }
+
+    private boolean moveUpInternal() {
+        boolean changed = false;
+        for (int c = 0; c < SIZE; c++) {
+            int[] col = getCol(c);
+            int[] original = col.clone();
+            processLine(col);
+            if (!java.util.Arrays.equals(original, col)) {
+                changed = true;
+                setCol(c, col);
+            }
+        }
+        return changed;
+    }
+
+    private boolean moveDownInternal() {
+        boolean changed = false;
+        for (int c = 0; c < SIZE; c++) {
+            int[] col = getCol(c);
+            int[] original = col.clone();
+            reverse(col);
+            processLine(col);
+            reverse(col);
+            if (!java.util.Arrays.equals(original, col)) {
+                changed = true;
+                setCol(c, col);
+            }
         }
         return changed;
     }
