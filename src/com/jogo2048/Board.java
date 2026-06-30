@@ -1,5 +1,7 @@
 package com.jogo2048;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.Random;
 
 public class Board {
@@ -8,6 +10,10 @@ public class Board {
     private Random random;
     private int score;
     private boolean won;
+
+    // Pilhas para desfazer/refazer
+    private final Deque<GameState> undoStack = new ArrayDeque<>();
+    private final Deque<GameState> redoStack = new ArrayDeque<>();
 
     public Board() {
         grid = new int[SIZE][SIZE];
@@ -23,6 +29,8 @@ public class Board {
         won = false;
         spawnRandomTile();
         spawnRandomTile();
+        undoStack.clear();
+        redoStack.clear();
     }
 
     public int getCell(int row, int col) {
@@ -84,13 +92,15 @@ public class Board {
 
     /**
      * Método centralizado de movimento.
-     * Gerencia o ciclo completo: executa o deslocamento e, se houver
-     * alteração, gera automaticamente uma nova peça no tabuleiro.
+     * Gerencia o ciclo completo: salva o estado anterior, executa o deslocamento,
+     * gera nova peça se houve alteração e atualiza as pilhas de histórico.
      *
      * @param dir direção do movimento
      * @return true se o tabuleiro foi alterado
      */
     public boolean move(Direction dir) {
+        // Salva o estado atual antes de qualquer modificação
+        GameState previous = new GameState(grid, score, won);
         boolean moved;
         switch (dir) {
             case LEFT:
@@ -111,8 +121,46 @@ public class Board {
 
         if (moved) {
             spawnRandomTile();
+            undoStack.push(previous); // registra estado anterior para undo
+            redoStack.clear(); // invalida redo após novo movimento
         }
         return moved;
+    }
+
+    // ---------- Undo/Redo ----------
+    public boolean canUndo() {
+        return !undoStack.isEmpty();
+    }
+
+    public boolean canRedo() {
+        return !redoStack.isEmpty();
+    }
+
+    public void undo() {
+        if (!canUndo())
+            return;
+        // Estado atual vai para a pilha de redo
+        redoStack.push(new GameState(grid, score, won));
+        // Restaura o último estado salvo
+        GameState state = undoStack.pop();
+        restoreState(state);
+    }
+
+    public void redo() {
+        if (!canRedo())
+            return;
+        // Estado atual vai para a pilha de undo
+        undoStack.push(new GameState(grid, score, won));
+        GameState state = redoStack.pop();
+        restoreState(state);
+    }
+
+    private void restoreState(GameState state) {
+        // Copia grid
+        for (int i = 0; i < SIZE; i++)
+            System.arraycopy(state.grid[i], 0, grid[i], 0, SIZE);
+        this.score = state.score;
+        this.won = state.won;
     }
 
     // ---------- Sub-rotinas internas de movimento (sem spawn) ----------
@@ -280,5 +328,20 @@ public class Board {
     // ---------- Enumeração de direções ----------
     public enum Direction {
         LEFT, RIGHT, UP, DOWN
+    }
+
+    // ---------- Classe interna para armazenar estado ----------
+    private static class GameState {
+        final int[][] grid;
+        final int score;
+        final boolean won;
+
+        GameState(int[][] original, int score, boolean won) {
+            this.grid = new int[SIZE][SIZE];
+            for (int i = 0; i < SIZE; i++)
+                this.grid[i] = original[i].clone();
+            this.score = score;
+            this.won = won;
+        }
     }
 }
