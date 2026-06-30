@@ -73,7 +73,7 @@ public class Board {
                 }
     }
 
-    // ---------- Métodos públicos de movimento (delegam ao centralizado) ----------
+    // ---------- Métodos públicos de movimento ----------
     public boolean moveLeft() {
         return move(Direction.LEFT);
     }
@@ -99,7 +99,6 @@ public class Board {
      * @return true se o tabuleiro foi alterado
      */
     public boolean move(Direction dir) {
-        // Salva o estado atual antes de qualquer modificação
         GameState previous = new GameState(grid, score, won);
         boolean moved;
         switch (dir) {
@@ -121,8 +120,8 @@ public class Board {
 
         if (moved) {
             spawnRandomTile();
-            undoStack.push(previous); // registra estado anterior para undo
-            redoStack.clear(); // invalida redo após novo movimento
+            undoStack.push(previous);
+            redoStack.clear();
         }
         return moved;
     }
@@ -139,9 +138,7 @@ public class Board {
     public void undo() {
         if (!canUndo())
             return;
-        // Estado atual vai para a pilha de redo
         redoStack.push(new GameState(grid, score, won));
-        // Restaura o último estado salvo
         GameState state = undoStack.pop();
         restoreState(state);
     }
@@ -149,14 +146,12 @@ public class Board {
     public void redo() {
         if (!canRedo())
             return;
-        // Estado atual vai para a pilha de undo
         undoStack.push(new GameState(grid, score, won));
         GameState state = redoStack.pop();
         restoreState(state);
     }
 
     private void restoreState(GameState state) {
-        // Copia grid
         for (int i = 0; i < SIZE; i++)
             System.arraycopy(state.grid[i], 0, grid[i], 0, SIZE);
         this.score = state.score;
@@ -313,8 +308,6 @@ public class Board {
 
     /**
      * Retorna uma cópia profunda (deep copy) da grade atual do tabuleiro.
-     * Útil para preservar o estado antes de um movimento e permitir
-     * o cálculo de animações de deslocamento.
      *
      * @return matriz 4x4 idêntica ao grid atual
      */
