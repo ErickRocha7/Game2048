@@ -192,6 +192,135 @@ public class GamePanel extends JPanel {
         requestFocusInWindow();
     }
 
+    // ---------- Lógica de mapeamento de movimento (Commit 3) ----------
+    private int gridToPixelX(int col) {
+        return PADDING + col * (CELL_SIZE + PADDING) + CELL_SIZE / 2;
+    }
+
+    private int gridToPixelY(int row) {
+        return PADDING + row * (CELL_SIZE + PADDING) + CELL_SIZE / 2;
+    }
+
+    private int[] reverseCopy(int[] arr) {
+        int[] rev = new int[arr.length];
+        for (int i = 0; i < arr.length; i++)
+            rev[i] = arr[arr.length - 1 - i];
+        return rev;
+    }
+
+    private List<TileMovement> computeMovements(int[][] oldGrid, int[][] newGrid, Board.Direction dir) {
+        List<TileMovement> movs = new ArrayList<>();
+        if (dir == Board.Direction.LEFT || dir == Board.Direction.RIGHT) {
+            boolean right = (dir == Board.Direction.RIGHT);
+            for (int r = 0; r < ROWS; r++) {
+                int[] oldRow = oldGrid[r];
+                int[] newRow = newGrid[r];
+                if (right) {
+                    oldRow = reverseCopy(oldRow);
+                    newRow = reverseCopy(newRow);
+                }
+                List<TileMovement> lineMovs = computeLineMovementsClean(r, oldRow, newRow);
+                if (right) {
+                    for (TileMovement mov : lineMovs) {
+                        mov = new TileMovement(mov.fromRow, (COLS - 1) - mov.fromCol, mov.toRow, (COLS - 1) - mov.toCol,
+                                mov.value, mov.isMerge, mov.isDisappearing);
+                        movs.add(mov);
+                    }
+                } else {
+                    movs.addAll(lineMovs);
+                }
+            }
+        } else {
+            boolean down = (dir == Board.Direction.DOWN);
+            for (int c = 0; c < COLS; c++) {
+                int[] oldCol = new int[ROWS];
+                int[] newCol = new int[ROWS];
+                for (int r = 0; r < ROWS; r++) {
+                    oldCol[r] = oldGrid[r][c];
+                    newCol[r] = newGrid[r][c];
+                }
+                if (down) {
+                    oldCol = reverseCopy(oldCol);
+                    newCol = reverseCopy(newCol);
+                }
+                List<TileMovement> colMovs = computeLineMovementsClean(c, oldCol, newCol);
+                for (TileMovement mov : colMovs) {
+                    if (down) {
+                        mov = new TileMovement((ROWS - 1) - mov.fromRow, c, (ROWS - 1) - mov.toRow, c,
+                                mov.value, mov.isMerge, mov.isDisappearing);
+                    } else {
+                        mov = new TileMovement(mov.fromRow, c, mov.toRow, c,
+                                mov.value, mov.isMerge, mov.isDisappearing);
+                    }
+                    movs.add(mov);
+                }
+            }
+        }
+        return movs;
+    }
+
+    private List<TileMovement> computeLineMovementsClean(int fixedCoord, int[] oldLine, int[] newLine) {
+        List<TileMovement> movs = new ArrayList<>();
+        class Cell {
+            int val, idx;
+
+            Cell(int v, int i) {
+                val = v;
+                idx = i;
+            }
+        }
+        List<Cell> cells = new ArrayList<>();
+        for (int i = 0; i < oldLine.length; i++)
+            if (oldLine[i] != 0)
+                cells.add(new Cell(oldLine[i], i));
+
+        // Simulação exata do merge: compact -> merge -> compact
+        List<Cell> step1 = new ArrayList<>(cells);
+        List<Cell> step2 = new ArrayList<>();
+        boolean[] mergedAway = new boolean[step1.size()];
+        for (int i = 0; i < step1.size(); i++) {
+            if (mergedAway[i])
+                continue;
+            if (i + 1 < step1.size() && step1.get(i).val == step1.get(i + 1).val) {
+                int mergedVal = step1.get(i).val * 2;
+                step2.add(new Cell(mergedVal, step1.get(i).idx));
+                mergedAway[i] = true;
+                mergedAway[i + 1] = true;
+                i++;
+            } else {
+                step2.add(new Cell(step1.get(i).val, step1.get(i).idx));
+                mergedAway[i] = true;
+            }
+        }
+        List<Cell> step3 = new ArrayList<>(step2); // já compacto
+
+        int newIdx = 0;
+        for (Cell c : step3) {
+            while (newIdx < newLine.length && newLine[newIdx] == 0)
+                newIdx++;
+            if (newIdx >= newLine.length)
+                break;
+            boolean merged = (c.val != oldLine[c.idx]);
+            movs.add(new TileMovement(fixedCoord, c.idx, fixedCoord, newIdx, c.val, merged, false));
+            if (merged) {
+                // Encontra o tile desaparecido (o vizinho da direita no step1)
+                int survivorIdxInStep1 = -1;
+                for (int k = 0; k < step1.size(); k++) {
+                    if (step1.get(k).idx == c.idx && !mergedAway[k]) {
+                        survivorIdxInStep1 = k;
+                        break;
+                    }
+                }
+                if (survivorIdxInStep1 >= 0 && survivorIdxInStep1 + 1 < step1.size()) {
+                    Cell vanished = step1.get(survivorIdxInStep1 + 1);
+                    movs.add(new TileMovement(fixedCoord, vanished.idx, fixedCoord, newIdx, vanished.val, true, true));
+                }
+            }
+            newIdx++;
+        }
+        return movs;
+    }
+
     // ---------- Classes internas de animação (Commit 2) ----------
     private static class TileMovement {
         int fromRow, fromCol, toRow, toCol, value;
