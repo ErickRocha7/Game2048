@@ -50,7 +50,7 @@ public class GamePanel extends JPanel {
         tileColors.put(65536, new Color(0xFFD700));
         tileColors.put(131072, new Color(0xADFF2F));
 
-        // Timer de animação agora atualiza os tiles e finaliza corretamente
+        // Timer de animação
         animTimer = new Timer(10, e -> {
             boolean allFinished = true;
             long now = System.currentTimeMillis();
@@ -174,33 +174,64 @@ public class GamePanel extends JPanel {
         return PADDING + row * (CELL_SIZE + PADDING) + CELL_SIZE / 2;
     }
 
+    // ---------- Renderização bifurcada (Commit 5) ----------
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
         Graphics2D g2 = (Graphics2D) g;
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        // Fundo do tabuleiro
         g2.setColor(new Color(0xBBADA0));
         g2.fillRoundRect(PADDING, PADDING,
                 COLS * CELL_SIZE + (COLS - 1) * PADDING,
                 ROWS * CELL_SIZE + (ROWS - 1) * PADDING, 10, 10);
 
-        // Ainda estático – Commit 5 vai bifurcar
-        for (int r = 0; r < ROWS; r++) {
-            for (int c = 0; c < COLS; c++) {
-                int value = board.getCell(r, c);
-                int x = PADDING + c * (CELL_SIZE + PADDING);
-                int y = PADDING + r * (CELL_SIZE + PADDING);
-                Color bg = getTileColor(value);
+        if (!animatedTiles.isEmpty()) {
+            // Modo animação: desenha tiles em movimento
+            for (AnimatedTile tile : animatedTiles) {
+                if (tile.finished)
+                    continue;
+                int drawX = (int) tile.curX - CELL_SIZE / 2;
+                int drawY = (int) tile.curY - CELL_SIZE / 2;
+                Color bg = getTileColor(tile.value);
                 g2.setColor(bg);
-                g2.fillRoundRect(x, y, CELL_SIZE, CELL_SIZE, 10, 10);
-                if (value != 0) {
-                    g2.setFont(new Font("Arial", Font.BOLD, value < 100 ? 36 : value < 1000 ? 32 : 28));
-                    String text = String.valueOf(value);
+
+                int size = (int) (CELL_SIZE * tile.scale);
+                int offset = (CELL_SIZE - size) / 2;
+                g2.fillRoundRect(drawX + offset, drawY + offset, size, size, 10, 10);
+
+                if (tile.value != 0) {
+                    g2.setFont(new Font("Arial", Font.BOLD,
+                            tile.value < 100 ? 36 : tile.value < 1000 ? 32 : 28));
+                    String text = String.valueOf(tile.value);
                     FontMetrics fm = g2.getFontMetrics();
-                    int tx = x + (CELL_SIZE - fm.stringWidth(text)) / 2;
-                    int ty = y + (CELL_SIZE - fm.getAscent()) / 2 + fm.getAscent() - 2;
+                    int tx = drawX + (CELL_SIZE - fm.stringWidth(text)) / 2;
+                    int ty = drawY + (CELL_SIZE - fm.getAscent()) / 2 + fm.getAscent() - 2;
                     g2.setColor(chooseTextColor(bg));
                     g2.drawString(text, tx, ty);
+                }
+            }
+        } else {
+            // Modo estático: desenho normal do tabuleiro
+            for (int r = 0; r < ROWS; r++) {
+                for (int c = 0; c < COLS; c++) {
+                    int value = board.getCell(r, c);
+                    int x = PADDING + c * (CELL_SIZE + PADDING);
+                    int y = PADDING + r * (CELL_SIZE + PADDING);
+                    Color bg = getTileColor(value);
+                    g2.setColor(bg);
+                    g2.fillRoundRect(x, y, CELL_SIZE, CELL_SIZE, 10, 10);
+                    if (value != 0) {
+                        g2.setFont(new Font("Arial", Font.BOLD,
+                                value < 100 ? 36 : value < 1000 ? 32 : 28));
+                        String text = String.valueOf(value);
+                        FontMetrics fm = g2.getFontMetrics();
+                        int tx = x + (CELL_SIZE - fm.stringWidth(text)) / 2;
+                        int ty = y + (CELL_SIZE - fm.getAscent()) / 2 + fm.getAscent() - 2;
+                        g2.setColor(chooseTextColor(bg));
+                        g2.drawString(text, tx, ty);
+                    }
                 }
             }
         }
