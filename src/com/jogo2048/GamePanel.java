@@ -50,10 +50,23 @@ public class GamePanel extends JPanel {
         tileColors.put(65536, new Color(0xFFD700));
         tileColors.put(131072, new Color(0xADFF2F));
 
-        // Timer de animação (ainda sem lógica real)
+        // Timer de animação agora atualiza os tiles e finaliza corretamente
         animTimer = new Timer(10, e -> {
-            // Nos próximos commits, atualizaremos os tiles aqui
+            boolean allFinished = true;
+            long now = System.currentTimeMillis();
+            for (AnimatedTile tile : animatedTiles) {
+                if (!tile.finished) {
+                    tile.update(now);
+                    allFinished = false;
+                }
+            }
             repaint();
+            if (allFinished) {
+                animTimer.stop();
+                animating = false;
+                animatedTiles.clear();
+                afterMoveCheck();
+            }
         });
 
         addKeyListener(new KeyAdapter() {
@@ -93,20 +106,72 @@ public class GamePanel extends JPanel {
                         return;
                 }
 
+                // Captura o estado ANTES do movimento
+                int[][] oldGrid = board.getGridSnapshot();
                 boolean moved = board.move(dir);
                 if (moved) {
+                    prepareMoveAnimation(oldGrid, dir);
+                    animating = true;
+                    animTimer.start();
                     updateScore();
-                    repaint();
-                    int winTile = board.checkWinTile();
-                    if (winTile > 0 && !board.hasWon()) {
-                        board.setWon(true);
-                        showWinDialog(winTile);
-                    }
-                    if (board.isGameOver())
-                        showGameOverDialog();
                 }
             }
         });
+    }
+
+    private void afterMoveCheck() {
+        int winTile = board.checkWinTile();
+        if (winTile > 0 && !board.hasWon()) {
+            board.setWon(true);
+            showWinDialog(winTile);
+        }
+        if (board.isGameOver()) {
+            showGameOverDialog();
+        }
+        requestFocusInWindow();
+    }
+
+    private void updateScore() {
+        if (scoreListener != null)
+            scoreListener.accept(board.getScore());
+    }
+
+    private void prepareMoveAnimation(int[][] oldGrid, Board.Direction dir) {
+        int[][] newGrid = board.getGridSnapshot();
+        List<TileMovement> movements = computeMovements(oldGrid, newGrid, dir);
+
+        long now = System.currentTimeMillis();
+        for (TileMovement mov : movements) {
+            int startX = gridToPixelX(mov.fromCol);
+            int startY = gridToPixelY(mov.fromRow);
+            int targetX = gridToPixelX(mov.toCol);
+            int targetY = gridToPixelY(mov.toRow);
+
+            AnimatedTile tile = new AnimatedTile(mov.value, startX, startY, targetX, targetY,
+                    mov.isMerge, mov.isDisappearing, now);
+            animatedTiles.add(tile);
+        }
+
+        // Novo tile que surgiu (spawn) – efeito de escala
+        outer: for (int r = 0; r < ROWS; r++) {
+            for (int c = 0; c < COLS; c++) {
+                if (newGrid[r][c] != 0 && oldGrid[r][c] == 0) {
+                    int cx = gridToPixelX(c);
+                    int cy = gridToPixelY(r);
+                    animatedTiles.add(new AnimatedTile(newGrid[r][c], cx, cy, cx, cy,
+                            false, false, now, true));
+                    break outer;
+                }
+            }
+        }
+    }
+
+    private int gridToPixelX(int col) {
+        return PADDING + col * (CELL_SIZE + PADDING) + CELL_SIZE / 2;
+    }
+
+    private int gridToPixelY(int row) {
+        return PADDING + row * (CELL_SIZE + PADDING) + CELL_SIZE / 2;
     }
 
     @Override
@@ -119,6 +184,7 @@ public class GamePanel extends JPanel {
                 COLS * CELL_SIZE + (COLS - 1) * PADDING,
                 ROWS * CELL_SIZE + (ROWS - 1) * PADDING, 10, 10);
 
+        // Ainda estático – Commit 5 vai bifurcar
         for (int r = 0; r < ROWS; r++) {
             for (int c = 0; c < COLS; c++) {
                 int value = board.getCell(r, c);
@@ -157,11 +223,6 @@ public class GamePanel extends JPanel {
         return lum > 0.5 ? new Color(0x776E65) : Color.WHITE;
     }
 
-    private void updateScore() {
-        if (scoreListener != null)
-            scoreListener.accept(board.getScore());
-    }
-
     public void setScoreListener(Consumer<Integer> listener) {
         this.scoreListener = listener;
     }
@@ -193,21 +254,6 @@ public class GamePanel extends JPanel {
     }
 
     // ---------- Lógica de mapeamento de movimento (Commit 3) ----------
-    private int gridToPixelX(int col) {
-        return PADDING + col * (CELL_SIZE + PADDING) + CELL_SIZE / 2;
-    }
-
-    private int gridToPixelY(int row) {
-        return PADDING + row * (CELL_SIZE + PADDING) + CELL_SIZE / 2;
-    }
-
-    private int[] reverseCopy(int[] arr) {
-        int[] rev = new int[arr.length];
-        for (int i = 0; i < arr.length; i++)
-            rev[i] = arr[arr.length - 1 - i];
-        return rev;
-    }
-
     private List<TileMovement> computeMovements(int[][] oldGrid, int[][] newGrid, Board.Direction dir) {
         List<TileMovement> movs = new ArrayList<>();
         if (dir == Board.Direction.LEFT || dir == Board.Direction.RIGHT) {
@@ -274,7 +320,6 @@ public class GamePanel extends JPanel {
             if (oldLine[i] != 0)
                 cells.add(new Cell(oldLine[i], i));
 
-        // Simulação exata do merge: compact -> merge -> compact
         List<Cell> step1 = new ArrayList<>(cells);
         List<Cell> step2 = new ArrayList<>();
         boolean[] mergedAway = new boolean[step1.size()];
@@ -292,7 +337,7 @@ public class GamePanel extends JPanel {
                 mergedAway[i] = true;
             }
         }
-        List<Cell> step3 = new ArrayList<>(step2); // já compacto
+        List<Cell> step3 = new ArrayList<>(step2);
 
         int newIdx = 0;
         for (Cell c : step3) {
@@ -303,7 +348,6 @@ public class GamePanel extends JPanel {
             boolean merged = (c.val != oldLine[c.idx]);
             movs.add(new TileMovement(fixedCoord, c.idx, fixedCoord, newIdx, c.val, merged, false));
             if (merged) {
-                // Encontra o tile desaparecido (o vizinho da direita no step1)
                 int survivorIdxInStep1 = -1;
                 for (int k = 0; k < step1.size(); k++) {
                     if (step1.get(k).idx == c.idx && !mergedAway[k]) {
@@ -321,7 +365,14 @@ public class GamePanel extends JPanel {
         return movs;
     }
 
-    // ---------- Classes internas de animação (Commit 2) ----------
+    private int[] reverseCopy(int[] arr) {
+        int[] rev = new int[arr.length];
+        for (int i = 0; i < arr.length; i++)
+            rev[i] = arr[arr.length - 1 - i];
+        return rev;
+    }
+
+    // ---------- Classes internas (Commit 2) ----------
     private static class TileMovement {
         int fromRow, fromCol, toRow, toCol, value;
         boolean isMerge;
