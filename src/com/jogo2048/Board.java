@@ -15,7 +15,6 @@ public class Board {
         reset();
     }
 
-    // Reinicia o tabuleiro: limpa, zera pontuação e gera duas peças iniciais
     public void reset() {
         for (int i = 0; i < SIZE; i++)
             for (int j = 0; j < SIZE; j++)
@@ -26,27 +25,22 @@ public class Board {
         spawnRandomTile();
     }
 
-    // Retorna o valor de uma célula
     public int getCell(int row, int col) {
         return grid[row][col];
     }
 
-    // Pontuação atual
     public int getScore() {
         return score;
     }
 
-    // Verifica se o jogador já venceu
     public boolean hasWon() {
         return won;
     }
 
-    // Define estado de vitória
     public void setWon(boolean won) {
         this.won = won;
     }
 
-    // Gera uma nova peça (2 com 90% de chance, 4 com 10%) em uma casa vazia
     public void spawnRandomTile() {
         int emptyCount = 0;
         for (int i = 0; i < SIZE; i++)
@@ -71,63 +65,79 @@ public class Board {
                 }
     }
 
-    // ---------- Métodos públicos de movimento ----------
+    // ---------- Métodos públicos de movimento (agora delegam ao método centralizado) ----------
     public boolean moveLeft() {
-        boolean changed = false;
-        for (int r = 0; r < SIZE; r++) {
-            int[] line = getRow(r);
-            int[] original = line.clone();
-            processLine(line);
-            if (!java.util.Arrays.equals(original, line)) {
-                changed = true;
-                setRow(r, line);
-            }
-        }
-        return changed;
+        return move(Direction.LEFT);
     }
 
     public boolean moveRight() {
-        boolean changed = false;
-        for (int r = 0; r < SIZE; r++) {
-            int[] line = getRow(r);
-            int[] original = line.clone();
-            reverse(line);
-            processLine(line);
-            reverse(line);
-            if (!java.util.Arrays.equals(original, line)) {
-                changed = true;
-                setRow(r, line);
-            }
-        }
-        return changed;
+        return move(Direction.RIGHT);
     }
 
     public boolean moveUp() {
-        boolean changed = false;
-        for (int c = 0; c < SIZE; c++) {
-            int[] col = getCol(c);
-            int[] original = col.clone();
-            processLine(col);
-            if (!java.util.Arrays.equals(original, col)) {
-                changed = true;
-                setCol(c, col);
-            }
-        }
-        return changed;
+        return move(Direction.UP);
     }
 
     public boolean moveDown() {
+        return move(Direction.DOWN);
+    }
+
+    /**
+     * Método centralizado de movimento.
+     * @param dir direção do deslocamento
+     * @return true se o tabuleiro foi alterado
+     */
+    public boolean move(Direction dir) {
         boolean changed = false;
-        for (int c = 0; c < SIZE; c++) {
-            int[] col = getCol(c);
-            int[] original = col.clone();
-            reverse(col);
-            processLine(col);
-            reverse(col);
-            if (!java.util.Arrays.equals(original, col)) {
-                changed = true;
-                setCol(c, col);
-            }
+        switch (dir) {
+            case LEFT:
+                for (int r = 0; r < SIZE; r++) {
+                    int[] line = getRow(r);
+                    int[] original = line.clone();
+                    processLine(line);
+                    if (!java.util.Arrays.equals(original, line)) {
+                        changed = true;
+                        setRow(r, line);
+                    }
+                }
+                break;
+            case RIGHT:
+                for (int r = 0; r < SIZE; r++) {
+                    int[] line = getRow(r);
+                    int[] original = line.clone();
+                    reverse(line);
+                    processLine(line);
+                    reverse(line);
+                    if (!java.util.Arrays.equals(original, line)) {
+                        changed = true;
+                        setRow(r, line);
+                    }
+                }
+                break;
+            case UP:
+                for (int c = 0; c < SIZE; c++) {
+                    int[] col = getCol(c);
+                    int[] original = col.clone();
+                    processLine(col);
+                    if (!java.util.Arrays.equals(original, col)) {
+                        changed = true;
+                        setCol(c, col);
+                    }
+                }
+                break;
+            case DOWN:
+                for (int c = 0; c < SIZE; c++) {
+                    int[] col = getCol(c);
+                    int[] original = col.clone();
+                    reverse(col);
+                    processLine(col);
+                    reverse(col);
+                    if (!java.util.Arrays.equals(original, col)) {
+                        changed = true;
+                        setCol(c, col);
+                    }
+                }
+                break;
         }
         return changed;
     }
@@ -231,5 +241,10 @@ public class Board {
         for (int i = 0; i < SIZE; i++)
             copy[i] = grid[i].clone();
         return copy;
+    }
+
+    // ---------- Enumeração de direções ----------
+    public enum Direction {
+        LEFT, RIGHT, UP, DOWN
     }
 }
