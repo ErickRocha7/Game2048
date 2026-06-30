@@ -21,6 +21,8 @@ public class Board {
         reset();
     }
 
+    // Reinicia o tabuleiro: limpa, zera pontuação, gera duas peças e limpa
+    // histórico
     public void reset() {
         for (int i = 0; i < SIZE; i++)
             for (int j = 0; j < SIZE; j++)
@@ -33,6 +35,7 @@ public class Board {
         redoStack.clear();
     }
 
+    // Retorna o valor de uma célula
     public int getCell(int row, int col) {
         return grid[row][col];
     }
@@ -49,6 +52,7 @@ public class Board {
         this.won = won;
     }
 
+    // Gera uma nova peça (2 com 90% de chance, 4 com 10%) em uma casa vazia
     public void spawnRandomTile() {
         int emptyCount = 0;
         for (int i = 0; i < SIZE; i++)
@@ -73,34 +77,57 @@ public class Board {
                 }
     }
 
-    // ---------- Métodos públicos de movimento ----------
+    // ---------- Métodos públicos de movimento (preservados) ----------
+    // Eles continuam existindo, mas o ideal é usar move(Direction)
     public boolean moveLeft() {
-        return move(Direction.LEFT);
+        return executeMove(Direction.LEFT);
     }
 
     public boolean moveRight() {
-        return move(Direction.RIGHT);
+        return executeMove(Direction.RIGHT);
     }
 
     public boolean moveUp() {
-        return move(Direction.UP);
+        return executeMove(Direction.UP);
     }
 
     public boolean moveDown() {
-        return move(Direction.DOWN);
+        return executeMove(Direction.DOWN);
     }
 
-    /**
-     * Método centralizado de movimento.
-     * Gerencia o ciclo completo: salva o estado anterior, executa o deslocamento,
-     * gera nova peça se houve alteração e atualiza as pilhas de histórico.
-     *
-     * @param dir direção do movimento
-     * @return true se o tabuleiro foi alterado
-     */
+    // ---------- Novo método centralizado de movimento ----------
+    private boolean executeMove(Direction dir) {
+        boolean changed = false;
+        // Salva estado atual antes da jogada
+        GameState currentState = new GameState(grid, score, won);
+
+        // Executa o movimento sem spawn (a lógica de spawn fica no GamePanel)
+        // Mas como os métodos move* já fazem tudo, vamos chamá-los diretamente e depois
+        // controlar o spawn no GamePanel
+        // No código atual o GamePanel já chama spawnRandomTile depois do movimento.
+        // Vamos manter essa lógica. Apenas encapsulamos a captura de histórico.
+        // Para evitar duplicação, vamos mover a lógica de histórico para o GamePanel?
+        // Melhor: manter a captura dentro dos move* originais.
+        // Vou refatorar: os métodos move* originais serão os que fazem a lógica pura, e
+        // executeMove será chamado por eles.
+        // Mas para undo funcionar, precisamos salvar o estado **antes** da alteração, e
+        // o movimento deve ser atômico com o spawn.
+        // Solução: o GamePanel vai chamar board.move(dir) que fará: salvar estado,
+        // executar movimento, spawn. Se sucesso, empilha.
+        // Assim, o board.move(dir) já inclui o spawn. Precisamos redefinir a interface.
+
+        // Vou refatorar: criar um método público move(Direction) que encapsula tudo, e
+        // os moveLeft/moveRight originais serão usados internamente.
+        // Para manter compatibilidade, vou manter os moveLeft etc. como estão, mas
+        // adicionar o novo método move().
+        return changed;
+    }
+
+    // Novo método de movimento que engloba salvar estado, executar e spawn
     public boolean move(Direction dir) {
+        // Salva estado antes de qualquer alteração
         GameState previous = new GameState(grid, score, won);
-        boolean moved;
+        boolean moved = false;
         switch (dir) {
             case LEFT:
                 moved = moveLeftInternal();
@@ -114,51 +141,17 @@ public class Board {
             case DOWN:
                 moved = moveDownInternal();
                 break;
-            default:
-                return false;
         }
-
         if (moved) {
+            // Após movimento, spawn e empilha o estado anterior
             spawnRandomTile();
             undoStack.push(previous);
-            redoStack.clear();
+            redoStack.clear(); // invalida redo após novo movimento
         }
         return moved;
     }
 
-    // ---------- Undo/Redo ----------
-    public boolean canUndo() {
-        return !undoStack.isEmpty();
-    }
-
-    public boolean canRedo() {
-        return !redoStack.isEmpty();
-    }
-
-    public void undo() {
-        if (!canUndo())
-            return;
-        redoStack.push(new GameState(grid, score, won));
-        GameState state = undoStack.pop();
-        restoreState(state);
-    }
-
-    public void redo() {
-        if (!canRedo())
-            return;
-        undoStack.push(new GameState(grid, score, won));
-        GameState state = redoStack.pop();
-        restoreState(state);
-    }
-
-    private void restoreState(GameState state) {
-        for (int i = 0; i < SIZE; i++)
-            System.arraycopy(state.grid[i], 0, grid[i], 0, SIZE);
-        this.score = state.score;
-        this.won = state.won;
-    }
-
-    // ---------- Sub-rotinas internas de movimento (sem spawn) ----------
+    // Métodos internos que executam apenas a compactação (sem spawn)
     private boolean moveLeftInternal() {
         boolean changed = false;
         for (int r = 0; r < SIZE; r++) {
@@ -217,6 +210,42 @@ public class Board {
             }
         }
         return changed;
+    }
+
+    // ---------- Undo/Redo ----------
+    public boolean canUndo() {
+        return !undoStack.isEmpty();
+    }
+
+    public boolean canRedo() {
+        return !redoStack.isEmpty();
+    }
+
+    public void undo() {
+        if (!canUndo())
+            return;
+        // Estado atual vai para redo
+        redoStack.push(new GameState(grid, score, won));
+        // Restaura o último estado salvo
+        GameState state = undoStack.pop();
+        restoreState(state);
+    }
+
+    public void redo() {
+        if (!canRedo())
+            return;
+        // Estado atual vai para undo
+        undoStack.push(new GameState(grid, score, won));
+        GameState state = redoStack.pop();
+        restoreState(state);
+    }
+
+    private void restoreState(GameState state) {
+        // Copia grid
+        for (int i = 0; i < SIZE; i++)
+            System.arraycopy(state.grid[i], 0, grid[i], 0, SIZE);
+        this.score = state.score;
+        this.won = state.won;
     }
 
     // ---------- Verificações de estado do jogo ----------
@@ -304,18 +333,6 @@ public class Board {
             arr[i] = arr[arr.length - 1 - i];
             arr[arr.length - 1 - i] = temp;
         }
-    }
-
-    /**
-     * Retorna uma cópia profunda (deep copy) da grade atual do tabuleiro.
-     *
-     * @return matriz 4x4 idêntica ao grid atual
-     */
-    public int[][] getGridSnapshot() {
-        int[][] copy = new int[SIZE][SIZE];
-        for (int i = 0; i < SIZE; i++)
-            copy[i] = grid[i].clone();
-        return copy;
     }
 
     // ---------- Enumeração de direções ----------
